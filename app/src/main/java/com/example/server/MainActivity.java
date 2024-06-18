@@ -2,6 +2,9 @@ package com.example.server;
 
 import androidx.appcompat.app.AppCompatActivity;
 
+import android.app.AlarmManager;
+import android.app.PendingIntent;
+import android.content.Intent;
 import android.net.wifi.WifiInfo;
 import android.net.wifi.WifiManager;
 import android.os.Bundle;
@@ -23,6 +26,7 @@ public class MainActivity extends AppCompatActivity {
     TextView tvMessages;
     EditText etMessage;
     Button btnSend;
+    Button btnReset;
     public static String SERVER_IP = "";
     public static final int SERVER_PORT = 8080;
     String message;
@@ -36,8 +40,9 @@ public class MainActivity extends AppCompatActivity {
         tvIP = findViewById(R.id.tvIP);
         tvPort = findViewById(R.id.tvPort);
         tvMessages = findViewById(R.id.tvMessages);
-        etMessage = findViewById(R.id.etMessage);
+//        etMessage = findViewById(R.id.etMessage);
         btnSend = findViewById(R.id.btnSend);
+        btnReset = findViewById(R.id.btnReser);
         try {
             SERVER_IP = getLocalIpAddress();
         } catch (UnknownHostException e) {
@@ -46,6 +51,13 @@ public class MainActivity extends AppCompatActivity {
         Thread1 = new Thread(new Thread1());
         Thread1.start();
 
+        btnReset.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                restartApp();
+            }
+        });
+
         btnSend.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
@@ -53,6 +65,17 @@ public class MainActivity extends AppCompatActivity {
                 sendFileToClients(fileName);
             }
         });
+
+
+    }
+
+    public void restartApp() {
+        Intent intent = new Intent(getApplicationContext(), MainActivity.class);
+        int pendingIntentId = 123456;
+        PendingIntent pendingIntent = PendingIntent.getActivity(getApplicationContext(), pendingIntentId, intent, PendingIntent.FLAG_CANCEL_CURRENT | PendingIntent.FLAG_IMMUTABLE);
+        AlarmManager alarmManager = (AlarmManager) getSystemService(ALARM_SERVICE);
+        alarmManager.set(AlarmManager.RTC, System.currentTimeMillis() + 100, pendingIntent);
+        System.exit(0);
     }
 
     private void sendFileToClients(String fileName) {
@@ -172,7 +195,7 @@ public class MainActivity extends AppCompatActivity {
         runOnUiThread(new Runnable() {
             @Override
             public void run() {
-                tvMessages.setText("Connected clients: " + count);
+                tvMessages.setText("Connected clients: " + count + "\n");
             }
         });
     }
@@ -211,7 +234,7 @@ public class MainActivity extends AppCompatActivity {
                 @Override
                 public void run() {
                     tvMessages.append("server: " + message + " ");
-                    etMessage.setText("");
+//                    etMessage.setText("");
                 }
             });
         }

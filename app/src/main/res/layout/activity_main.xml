@@ -27,23 +27,32 @@
         android:id="@+id/tvMessages"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_above="@+id/etMessage"
         android:layout_below="@+id/tvConnectionStatus"
         android:inputType="textMultiLine"
         android:textAppearance="@style/Base.TextAppearance.AppCompat.Medium" />
-    <EditText
-        android:id = "@+id/etMessage"
-        android:layout_width = "match_parent"
-        android:layout_height = "wrap_content"
-        android:layout_above = "@+id/btnSend"
-        android:hint = "Enter Message"
-        android:inputType = "text" />
+<!--    <EditText-->
+<!--        android:id = "@+id/etMessage"-->
+<!--        android:layout_width = "match_parent"-->
+<!--        android:layout_height = "wrap_content"-->
+<!--        android:layout_above = "@+id/btnSend"-->
+<!--        android:hint = "Enter Message"-->
+<!--        android:inputType = "text" />-->
+
     <Button
-        android:id = "@+id/btnSend"
-        android:layout_width = "match_parent"
-        android:layout_height = "wrap_content"
-        android:layout_alignParentBottom = "true"
-        android:text = "SEND"
+        android:id="@+id/btnSend"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_alignParentBottom="true"
+        android:layout_marginBottom="50dp"
+        android:text="SEND"
+        tools:ignore="OnClick" />
+
+    <Button
+        android:id="@+id/btnReser"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_alignParentBottom="true"
+        android:text="RESET"
         tools:ignore="OnClick" />
 </RelativeLayout>
 

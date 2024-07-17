@@ -1,13 +1,21 @@
 package com.example.server;
 
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.core.app.ActivityCompat;
+import androidx.core.content.ContextCompat;
 
+import android.Manifest;
 import android.app.AlarmManager;
 import android.app.PendingIntent;
 import android.content.Intent;
+import android.content.pm.PackageManager;
 import android.net.wifi.WifiInfo;
 import android.net.wifi.WifiManager;
+import android.os.AsyncTask;
+import android.os.Build;
 import android.os.Bundle;
+import android.os.Environment;
+import android.util.Log;
 import android.view.View;
 import android.widget.Button;
 import android.widget.EditText;
@@ -20,6 +28,7 @@ import java.nio.ByteOrder;
 import java.util.*;
 
 public class MainActivity extends AppCompatActivity {
+    private static final int REQUEST_CODE_STORAGE_PERMISSION = 1;
     ServerSocket serverSocket;
     Thread Thread1 = null;
     TextView tvIP, tvPort;
@@ -32,6 +41,8 @@ public class MainActivity extends AppCompatActivity {
     String message;
     int clientCount = 0; // Variable to track connected clients
     Set<Socket> clientSockets = new HashSet<>(); // Set to store active client sockets
+    long timeTaken;
+    long startTime;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -61,12 +72,39 @@ public class MainActivity extends AppCompatActivity {
         btnSend.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                String fileName = "/sdcard/testing.txt"; // Replace with your actual file
-                sendFileToClients(fileName);
+                if (checkAndRequestPermissions()) {
+                    String fileName = Environment.getExternalStorageDirectory().getPath() + "/testing.txt"; // Replace with your actual file
+                    new SendFileTask().execute(fileName);
+                }
             }
         });
 
+    }
 
+    private boolean checkAndRequestPermissions() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            if (ContextCompat.checkSelfPermission(this, Manifest.permission.READ_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED ||
+                    ContextCompat.checkSelfPermission(this, Manifest.permission.WRITE_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED) {
+                ActivityCompat.requestPermissions(this, new String[]{
+                        Manifest.permission.READ_EXTERNAL_STORAGE,
+                        Manifest.permission.WRITE_EXTERNAL_STORAGE
+                }, REQUEST_CODE_STORAGE_PERMISSION);
+                return false;
+            }
+        }
+        return true;
+    }
+
+    @Override
+    public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+        if (requestCode == REQUEST_CODE_STORAGE_PERMISSION) {
+            if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+                btnSend.performClick();
+            } else {
+                tvMessages.append("Storage permission denied.\n");
+            }
+        }
     }
 
     public void restartApp() {
@@ -78,10 +116,24 @@ public class MainActivity extends AppCompatActivity {
         System.exit(0);
     }
 
+    private class SendFileTask extends AsyncTask<String, Void, Void> {
+        @Override
+        protected Void doInBackground(String... params) {
+            sendFileToClients(params[0]);
+            return null;
+        }
+    }
+
     private void sendFileToClients(String fileName) {
+        startTime = System.currentTimeMillis();
         File file = new File(fileName);
         if (!file.exists()) {
-            tvMessages.append("File not found: " + fileName + "\n");
+            runOnUiThread(new Runnable() {
+                @Override
+                public void run() {
+                    tvMessages.append("File not found: " + fileName + "\n");
+                }
+            });
             return;
         }
 
@@ -97,6 +149,8 @@ public class MainActivity extends AppCompatActivity {
                 sendSubfile(clientSocket, subfileName);
                 clientIndex++;
             }
+            long endTime = System.currentTimeMillis();
+            timeTaken = endTime - startTime;
         } catch (IOException e) {
             e.printStackTrace();
         }
@@ -105,11 +159,16 @@ public class MainActivity extends AppCompatActivity {
     private void sendSubfile(Socket clientSocket, String subfileName) throws IOException {
         File file = new File(subfileName);
         if (!file.exists()) {
-            tvMessages.append("File not found: " + subfileName + "\n");
+            runOnUiThread(new Runnable() {
+                @Override
+                public void run() {
+                    tvMessages.append("File not found: " + subfileName + "\n");
+                }
+            });
             return;
         }
 
-        byte[] buffer = new byte[4096];
+        byte[] buffer = new byte[10000];
         FileInputStream fis = new FileInputStream(file);
         BufferedInputStream bis = new BufferedInputStream(fis);
 
@@ -135,7 +194,7 @@ public class MainActivity extends AppCompatActivity {
         runOnUiThread(new Runnable() {
             @Override
             public void run() {
-                tvMessages.append("File sent to client: " + clientSocket.getInetAddress().getHostAddress() + "\n");
+                tvMessages.append("File sent to client: " + clientSocket.getInetAddress().getHostAddress() + "(" + timeTaken + ")ms" + "\n");
             }
         });
 
@@ -210,7 +269,7 @@ public class MainActivity extends AppCompatActivity {
                     runOnUiThread(new Runnable() {
                         @Override
                         public void run() {
-                            tvMessages.append("client: " + receivedMessage + "\n");
+                            tvMessages.append(receivedMessage + "\n");
                         }
                     });
                 }

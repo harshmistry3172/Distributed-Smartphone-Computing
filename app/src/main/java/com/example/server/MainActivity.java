@@ -11,11 +11,14 @@ import android.os.AsyncTask;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Environment;
+import android.util.Log;
 import android.view.View;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.TextView;
 
+import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
@@ -34,8 +37,12 @@ import java.net.Socket;
 import java.net.UnknownHostException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 public class MainActivity extends AppCompatActivity {
@@ -52,6 +59,8 @@ public class MainActivity extends AppCompatActivity {
     String message;
     int clientCount = 0; // Variable to track connected clients
     Set<Socket> clientSockets = new HashSet<>(); // Set to store active client sockets
+    Map<String, Double> computingCapacity = new HashMap<>();
+
     long timeTaken;
     long startTime;
 
@@ -84,8 +93,12 @@ public class MainActivity extends AppCompatActivity {
             @Override
             public void onClick(View v) {
                 if (checkAndRequestPermissions()) {
-                    String fileName = Environment.getExternalStorageDirectory().getPath() + "/testing.txt"; // Replace with your actual file
-                    new SendFileTask().execute(fileName);
+//                    String fileName = Environment.getExternalStorageDirectory().getPath() + "/testing.txt"; // Replace with your actual file
+//                    new SendFileTask().execute(fileName);
+
+                    File file = new File(getExternalFilesDir(null), "testing.txt");
+                    new SendFileTask().execute(file.getAbsolutePath());
+
                 }
             }
         });
@@ -135,37 +148,70 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
+//    private void sendFileToClients(String fileName) {
+//        startTime = System.currentTimeMillis();
+//        File file = new File(fileName);
+//        if (!file.exists()) {
+//            runOnUiThread(new Runnable() {
+//                @Override
+//                public void run() {
+//                    tvMessages.append("File not found: " + fileName + "\n");
+//                }
+//            });
+//            return;
+//        }
+//
+//        try {
+//            // Calculate number of clients and split file accordingly
+//            int numberOfClients = clientSockets.size();
+//            List<String> subfileNames = FileSplitter.splitTextFile(fileName, numberOfClients);
+//
+//            // Iterate over each client socket and send corresponding subfile
+//            int clientIndex = 0;
+//            for (Socket clientSocket : clientSockets) {
+//                String subfileName = subfileNames.get(clientIndex);
+//                sendSubfile(clientSocket, subfileName);
+//                clientIndex++;
+//            }
+//            long endTime = System.currentTimeMillis();
+//            timeTaken = endTime - startTime;
+//        } catch (IOException e) {
+//            e.printStackTrace();
+//        }
+//    }
+
+
     private void sendFileToClients(String fileName) {
         startTime = System.currentTimeMillis();
         File file = new File(fileName);
         if (!file.exists()) {
-            runOnUiThread(new Runnable() {
-                @Override
-                public void run() {
-                    tvMessages.append("File not found: " + fileName + "\n");
-                }
-            });
+            runOnUiThread(() -> tvMessages.append("File not found: " + fileName + "\n"));
             return;
         }
 
         try {
-            // Calculate number of clients and split file accordingly
-            int numberOfClients = clientSockets.size();
-            List<String> subfileNames = FileSplitter.splitTextFile(fileName, numberOfClients);
+            // Create a map of client IPs and their computing capacities
 
-            // Iterate over each client socket and send corresponding subfile
-            int clientIndex = 0;
+            // Split the file based on computing capacities
+            FileSplitter.splitTextFileBySize(fileName, computingCapacity);
+
+            // Send subfiles to the corresponding clients
             for (Socket clientSocket : clientSockets) {
-                String subfileName = subfileNames.get(clientIndex);
+                String clientIp = clientSocket.getInetAddress().getHostAddress();
+                String subfileName = fileName + "_" + clientIp + ".txt";
                 sendSubfile(clientSocket, subfileName);
-                clientIndex++;
             }
+
             long endTime = System.currentTimeMillis();
             timeTaken = endTime - startTime;
         } catch (IOException e) {
             e.printStackTrace();
         }
     }
+
+
+
+
 
     private void sendSubfile(Socket clientSocket, String subfileName) throws IOException {
         File file = new File(subfileName);
@@ -276,19 +322,63 @@ public class MainActivity extends AppCompatActivity {
             try {
                 String message;
                 while ((message = input.readLine()) != null) {
-                    final String receivedMessage = message;
-                    runOnUiThread(new Runnable() {
-                        @Override
-                        public void run() {
-                            tvMessages.append(receivedMessage + "\n");
-                        }
-                    });
+                    // Extract speed and IP from the message
+                    if (message.contains("Speed:") && message.contains("IP:")) {
+                        // Use regex or substring to extract the values
+                        String speed = extractSpeed(message);
+                        String ipAddress = extractIp(message);
+
+                        // Store the extracted values in a HashMap with IP as key and Speed as value
+                        computingCapacity.put(ipAddress, Double.parseDouble(speed));
+
+                        // Optionally, print or log the extracted data
+                        Log.d("SERVER", "Extracted Speed: " + speed + ", IP: " + ipAddress);
+
+                        // Update the UI with the received message
+                        final String receivedMessage = "Speed: " + speed + ", IP: " + ipAddress;
+                        runOnUiThread(new Runnable() {
+                            @Override
+                            public void run() {
+                                tvMessages.append(receivedMessage + "\n");
+                            }
+                        });
+                    }
                 }
             } catch (IOException e) {
                 e.printStackTrace();
             }
         }
+
+        // Method to extract the speed from the message
+        private String extractSpeed(String message) {
+            String speed = null;
+            try {
+                int speedStart = message.indexOf("Speed:") + 7;  // Skip "Speed: "
+                int speedEnd = message.indexOf(",", speedStart);  // Find the comma after the speed
+                if (speedStart != -1 && speedEnd != -1) {
+                    speed = message.substring(speedStart, speedEnd).trim();
+                }
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+            return speed;
+        }
+
+        // Method to extract the IP address from the message
+        private String extractIp(String message) {
+            String ip = null;
+            try {
+                int ipStart = message.indexOf("IP:") + 4;  // Skip "IP: "
+                if (ipStart != -1) {
+                    ip = message.substring(ipStart).trim();  // Get everything after "IP: "
+                }
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+            return ip;
+        }
     }
+
 
     class Thread3 implements Runnable {
         private String message;
